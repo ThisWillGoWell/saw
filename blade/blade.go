@@ -111,8 +111,7 @@ func (b *Blade) GetEvents() {
 	}
 }
 
-// StreamEvents continuously prints log events to the console
-func (b *Blade) StreamEvents() {
+func (b *Blade) StreamEventsWithCancel(cancel chan interface{} ){
 	var lastSeenTime *int64
 	var seenEventIDs map[string]bool
 	formatter := b.output.Formatter()
@@ -151,7 +150,8 @@ func (b *Blade) StreamEvents() {
 		return !lastPage
 	}
 
-	for {
+	run := true
+	for run {
 		err := b.cwl.FilterLogEventsPages(input, handlePage)
 		if err != nil {
 			fmt.Println("Error", err)
@@ -160,8 +160,17 @@ func (b *Blade) StreamEvents() {
 		if lastSeenTime != nil {
 			input.SetStartTime(*lastSeenTime)
 		}
-		time.Sleep(1 * time.Second)
+		select {
+		case <- time.After(time.Second):
+			continue
+		case <-cancel:
+			run = false
+		}
 	}
+}
+// StreamEvents continuously prints log events to the console
+func (b *Blade) StreamEvents() {
+	b.StreamEventsWithCancel(make(chan interface{}))
 }
 
 // formatEvent returns a CloudWatch log event as a formatted string using the provided formatter
